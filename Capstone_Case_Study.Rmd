@@ -1,0 +1,200 @@
+---
+title: "Cyclistic Bike-Share Analysis: How to Navigate Speedy Success (Capstone Case
+  Study)"
+author: "Tyrone Hubbard"
+date: "2025-03-24"
+output:
+  pdf_document: default
+  html_document: default
+---
+```{r setup, include=FALSE}
+library(tidyverse)
+```
+
+
+# Introduction
+
+Welcome to my Google Data Analytics Capstone Cyclistic bike-share analysis case study! In this analysis, I assume the role of a junior data analyst working for Cyclistic, a fictional bike-share company in Chicago. The primary goal is to understand how annual members and casual riders use Cyclistic bikes differently. The insights gained will be used to develop a new marketing strategy aimed at converting casual riders into annual members, a key objective for the company's future success.
+
+Cyclistic launched its successful bike-share program in 2016 (Cyclistic Case Study). The program has since grown to include a fleet of 5,824 geotracked bicycles across 692 stations in Chicago (Cyclistic Case Study). Cyclistic distinguishes itself by offering a variety of bike options, including reclining bikes, hand tricycles, and cargo bikes, catering to a diverse range of riders (Cyclistic Case Study). While Cyclistic users are more likely to ride for leisure, about 30% use the bikes to commute to work each day (Cyclistic Case Study).
+
+Cyclistic's marketing strategy has historically focused on building general awareness and appealing to broad consumer segments, enabled by flexible pricing plans such as single-ride passes, full-day passes, and annual memberships (Cyclistic Case Study). Casual riders are those who purchase single-ride or full-day passes, while annual members are those who purchase annual memberships (Cyclistic Case Study).
+
+## Business Task
+
+The main business task is to analyze Cyclistic's historical bike trip data to identify trends and differences in how annual members and casual riders use Cyclistic bikes (Cyclistic Case Study). This analysis will inform the development of targeted marketing strategies to convert casual riders into annual members.
+
+## Data Sources and Preparation
+
+The analysis uses Cyclistic's historical trip data. Specifically, the Divvy 2019 Q1 and Divvy 2020 Q1 datasets were used (Cyclistic Case Study). It is important to note that Cyclistic is a fictional company and the datasets are appropriate for this case study. The data was provided by Motivate International Inc. (Cyclistic Case Study). Data privacy considerations prevent the use of riders’ personally identifiable information.
+
+The datasets were prepared for analysis using R. This involved:
+
+* Standardizing column names.
+* Combining the datasets into a single dataframe.
+* Converting date and time columns to appropriate formats.
+* Calculating ride length.
+* Creating columns for day of the week, month, and year.
+* Removing or filtering out irrelevant or erroneous data (e.g., negative ride lengths, extremely long ride lengths).
+
+```{r Dataset Preparation}
+divvy_2019 <- read_csv("data/Divvy_2019_Q1.csv")
+divvy_2020 <- read_csv("data/Divvy_2020_Q1.csv")
+
+names(divvy_2019)
+unique(divvy_2019$user_type)
+table(divvy_2019$gender)
+table(divvy_2019$birthyear)
+summary(divvy_2019)
+
+names(divvy_2020)
+unique(divvy_2020$user_type)
+summary(divvy_2020)
+
+divvy_2019 <- divvy_2019 %>%
+  select(trip_id, start_time, end_time, start_station_name, start_station_id, end_station_name, end_station_id, user_type)
+
+divvy_2019$rideable_type <- NA
+divvy_2019$start_lat <- NA
+divvy_2019$start_lng <- NA
+divvy_2019$end_lat <- NA
+divvy_2019$end_lng <- NA
+
+divvy_2019 <- divvy_2019 %>%
+  select(trip_id, rideable_type, start_time, end_time, start_station_name, start_station_id, end_station_name, end_station_id, start_lat, start_lng, end_lat, end_lng, user_type)
+
+divvy_2019$trip_id <- as.character(divvy_2019$trip_id)
+divvy_2020$trip_id <- as.character(divvy_2020$trip_id)
+all_trips <- bind_rows(divvy_2019, divvy_2020)
+
+str(all_trips$trip_id)
+
+#Convert start_time and end_time to datetime objects:
+all_trips$start_time <- ymd_hms(all_trips$start_time)
+all_trips$end_time <- ymd_hms(all_trips$end_time)
+
+#Calculate ride_length in minutes:
+all_trips$ride_length <- difftime(all_trips$end_time, all_trips$start_time, units = "mins")
+all_trips$ride_length <- as.numeric(all_trips$ride_length)
+
+#Create columns for day of week, month, and year:
+all_trips$day_of_week <- wday(all_trips$start_time, label = TRUE)
+all_trips$month <- month(all_trips$start_time, label = TRUE)
+all_trips$year <- year(all_trips$start_time)
+
+#Remove negative ride_length values (if any):
+all_trips <- all_trips %>% filter(ride_length >= 0)
+
+#Remove any rows where the ride_length is extremely long. These trips are likely data errors.
+all_trips <- all_trips %>% filter(ride_length < 1440)
+```
+
+## Analysis
+
+The analysis focused on comparing ride patterns between annual members and casual riders. Key metrics and visualizations include:
+
+* **Ride Length Distribution:** Histograms were used to visualize the distribution of ride lengths for each user type.
+
+```{r}
+
+#   Ride Length Distribution by User Type
+ggplot(all_trips, aes(x = ride_length, fill = user_type)) +
+  geom_histogram(bins = 30, alpha = 0.7) +
+  facet_wrap(~user_type) +
+  labs(title = "Ride Length Distribution by User Type", x = "Ride Length (minutes)", y = "Count") +
+  scale_y_continuous(labels = scales::comma)
+```
+
+
+* **Average Ride Length by Day of Week:** Bar plots were used to compare average ride lengths by user type across different days of the week.
+
+```{r}
+
+#   Average Ride Length by User Type and Day of Week
+average_ride_length_by_day <- all_trips %>%
+  group_by(user_type, day_of_week) %>%
+  summarize(avg_ride_length = mean(ride_length))
+
+ggplot(average_ride_length_by_day, aes(x = day_of_week, y = avg_ride_length, fill = user_type)) +
+  geom_col(position = "dodge") +
+  labs(title = "Average Ride Length by User Type and Day of Week", x = "Day of Week", y = "Average Ride Length (minutes)")
+```
+
+* **Average Ride Length by Month:** Bar plots were used to compare average ride lengths by user type across different months.
+
+```{r}
+
+#   Average Ride Length by User Type and Month
+average_ride_length_by_month <- all_trips %>%
+  group_by(user_type, month) %>%
+  summarize(avg_ride_length = mean(ride_length))
+
+ggplot(average_ride_length_by_month, aes(x = month, y = avg_ride_length, fill = user_type)) +
+  geom_col(position = "dodge") +
+  labs(title = "Average Ride Length by User Type and Month", x = "Month", y = "Average Ride Length (minutes)")
+```
+
+* **Number of Rides by Year:** Bar plots were used to visualize the number of rides by user type for 2019 and 2020.
+
+```{r}
+
+#   Number of Rides by Year and User Type
+rides_by_year <- all_trips %>%
+  group_by(user_type, year) %>%
+  summarize(number_of_rides = n())
+
+ggplot(rides_by_year, aes(x = year, y = number_of_rides, fill = user_type)) +
+  geom_col(position = "dodge") +
+  labs(title = "Number of Rides by Year and User Type", x = "Year", y = "Number of Rides")
+```
+
+* **Top 10 Start Stations:** Bar plots were used to visualize the top 10 start stations for each user type.
+
+```{r}
+
+#   Top 10 Start Stations by User Type
+top_start_stations <- all_trips %>%
+  group_by(user_type, start_station_name) %>%
+  summarize(number_of_rides = n()) %>%
+  arrange(desc(number_of_rides)) %>%
+  filter(start_station_name != "NA") %>%
+  top_n(10, number_of_rides)
+
+print(top_start_stations)
+
+ggplot(top_start_stations, aes(x = reorder(start_station_name, number_of_rides), y = number_of_rides, fill = user_type)) +
+  geom_col(position = "dodge") +
+  coord_flip() +
+  facet_wrap(~user_type) +
+  labs(title = "Top 10 Start Stations by User Type", x = "Start Station", y = "Number of Rides")
+```
+
+## Findings
+
+The analysis reveals several key differences in how annual members and casual riders use Cyclistic bikes:
+
+* **Ride Length:** Casual riders take significantly longer rides than annual members. The ride length distribution for casual riders is right-skewed, indicating a mix of short and long rides, while annual members' rides are concentrated at shorter durations.
+* **Day of Week Patterns:** Casual riders exhibit the longest rides on weekends, suggesting recreational use. Annual members maintain relatively consistent ride lengths throughout the week, indicating commuting to work patterns.
+* **Monthly Patterns:** Ride length patterns remain consistent across months for both user types, with casual riders consistently taking longer rides.
+* **Ridership Growth:** Annual membership saw a substantial increase from 2019 to 2020, dwarfing the growth in casual ridership.
+* **Start Station Locations:** Annual members primarily start their rides from stations in downtown Chicago, likely for commuting. Casual riders start from a wider range of stations, including those near recreational areas and tourist attractions.
+
+## Summary
+
+This analysis of Cyclistic bike-share data highlights distinct usage patterns between annual members and casual riders. Annual members primarily use the service for short, consistent commutes, concentrated around downtown Chicago. Casual riders, on the other hand, use the service for longer, more varied rides, often for recreational purposes, particularly on weekends and near tourist locations. The significant growth in annual membership from 2019 to 2020 underscores the importance of this user group to Cyclistic's business. 
+
+## Recommendations
+
+Based on the analysis, the following recommendations are made to convert casual riders into annual members:
+
+1.  **Targeted Marketing Campaigns:** Develop marketing campaigns that appeal to the recreational and leisure-oriented usage patterns of casual riders. Highlight the value of annual memberships for weekend trips, exploring the city, and enjoying scenic rides. 
+2.  **Incentivize Weekend/Leisure Use:** Offer membership perks or discounts specifically for weekend or off-peak usage, aligning with casual riders' longer, leisure-focused trips.
+3.  **Promote Convenience and Value:** Emphasize the convenience and value of annual memberships for regular use, even beyond commuting. This could include highlighting the ease of access, cost savings for frequent riders, and the availability of bikes for various purposes. 
+
+## Conclusion
+
+Understanding the distinct usage patterns of annual members and casual riders is crucial for Cyclistic's growth strategy. By tailoring marketing efforts to appeal to the specific needs and behaviors of casual riders, Cyclistic can effectively increase annual memberships and drive sustainable success.
+
+## References
+
+_Google Data Analytics Capstone: Cyclistic Case Study_. (Accessed March 23, 2025). Case study: How does a bike-share navigate speedy success? Cyclistic.
